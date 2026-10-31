@@ -1,0 +1,15 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "geneformer-pert"
+version = "0.2.0"
+description = "Geneformer virtual perturbation standardized pipeline (prepare -> ISP -> displacement), methods fixed for reproducibility"
+requires-python = ">=3.10"
+
+[project.scripts]
+geneformer-pert = "geneformer_pert.cli:main"
+
+[tool.setuptools]
+packages = ["geneformer_pert"]
