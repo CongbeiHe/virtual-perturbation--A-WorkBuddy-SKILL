@@ -92,7 +92,41 @@ print(a.shape, list(a.obs.columns), list(a.layers.keys()), list(a.var.columns))
 参考耗时（RTX 5060 Laptop 8GB）：3,693 细胞 → prepare 数分钟、扰动 ~23 分钟、
 位移分析 ~22 分钟。输出见 `outputs/nashhcc_tumor_vnn1_overexpress_analysis/`。
 
-## 6. 常见问题
+## 6. Rank-matched null-control workflow（过表达必读）
+
+过表达有两个必须处理的陷阱（见 README「Overexpression: two caveats」）：
+未表达细胞走「只 insert」的机械捷径抬高 1-cos；以及缺少零分布时无法判断
+效应是否基因特异。40-47 号脚本实现了完整流程，**无额外依赖**
+（只用 requirements.txt 里已有的 numpy/pandas/scanpy/scipy）。
+
+```powershell
+# 指定工作目录（输出落在这里；也可每次用 --workdir）
+$env:GENEFORMER_PERT_WORKDIR = "$PWD\work"
+
+# 1) 先看 rank —— 决定「筛细胞」这条路值不值得走（CPU，数分钟）
+.\venv\Scripts\python.exe scripts\41_target_rank_position.py `
+  --datasets myset --genes MYGENE --top 300
+
+# 2) rank 中位 < 500 才值得抽 target+ 子集
+.\venv\Scripts\python.exe scripts\42_make_pos_subset.py --target MYGENE --datasets myset
+
+# 3) 挑 20 个 rank-matched 对照（<20 个时经验 p 下限太高，不可能显著）
+.\venv\Scripts\python.exe scripts\47_pick_extra_controls.py `
+  --target MYGENE --datasets myset --n-new 16
+
+# 4) 跑对照（只跑 displacement，约省一半 GPU 时间）
+.\venv\Scripts\python.exe scripts\45_run_controls_displacement.py `
+  --datasets myset --genes-file outputs\mygene20_genes.txt
+
+# 5) 比较，读 z / 经验 p / rank 校准残差
+.\venv\Scripts\python.exe scripts\46_null_comparison.py --target MYGENE `
+  --datasets myset --controls-file outputs\mygene20_genes.txt
+```
+
+耗时参考（RTX 5060 Laptop 8GB）：displacement-only ≈ 6-9 min / 基因 / 2000 细胞；
+完整 L1 链 ≈ 14.5 min。**必须单进程串行**，多进程在 8GB 显存下必 OOM。
+
+## 7. 常见问题
 
 - **CUDA out of memory**：降 `--batch`（默认 8）；包内 vram-guard 会在显存吃紧时自动预警。
 - **`no kernel image`**：torch CUDA 版本与显卡算力不匹配（50 系必须 cu128）。
